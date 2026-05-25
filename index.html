@@ -30,9 +30,100 @@
             height: 100vh;
             display: flex;
             overflow: hidden;
+            position: relative;
         }
 
-        /* Sidebar - Group & Chat */
+        /* --- JOIN ROOM MODAL OVERLAY --- */
+        .join-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        /* Hides the login screen once joined */
+        .join-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .join-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--bg-accent);
+            padding: 40px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .join-card h2 {
+            margin-bottom: 8px;
+            font-size: 1.8rem;
+        }
+
+        .join-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .form-input {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--bg-accent);
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: var(--color-link);
+        }
+
+        .btn-block {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--color-pomodoro);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-block:hover {
+            background-color: #dc2626;
+        }
+
+        /* --- SIDEBAR & DASHBOARD LAYOUT --- */
         .sidebar {
             width: 320px;
             background-color: var(--bg-secondary);
@@ -104,7 +195,6 @@
             background-color: var(--color-pomodoro);
         }
 
-        /* Chat Panel Box */
         .chat-box {
             flex: 1;
             background: var(--bg-primary);
@@ -143,7 +233,6 @@
             outline: none;
         }
 
-        /* Main Content Dashboard Area */
         .main-dashboard {
             flex: 1;
             display: flex;
@@ -154,7 +243,6 @@
             padding: 40px;
         }
 
-        /* Phase Badges */
         .phase-control {
             display: flex;
             gap: 12px;
@@ -180,7 +268,6 @@
             color: white;
         }
 
-        /* Interactive Giant Timer Graphic */
         .timer-container {
             position: relative;
             width: 320px;
@@ -221,7 +308,6 @@
             z-index: 10;
         }
 
-        /* Control Buttons */
         .controls {
             display: flex;
             gap: 16px;
@@ -251,13 +337,28 @@
             color: var(--text-main);
             border: 1px solid var(--bg-accent);
         }
-
-        .btn-primary:hover, .btn-secondary:hover {
-            opacity: 0.9;
-        }
     </style>
 </head>
 <body>
+
+    <div class="join-overlay" id="joinOverlay">
+        <div class="join-card">
+            <h2>Join Study Room</h2>
+            <p>Enter your details to enter the synchronous session.</p>
+            
+            <div class="input-group">
+                <label for="username">Your Name</label>
+                <input type="text" id="username" class="form-input" placeholder="e.g., Blessy" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="passcode">Room Passcode</label>
+                <input type="password" id="passcode" class="form-input" placeholder="Enter room passcode" required>
+            </div>
+            
+            <button class="btn-block" id="joinBtn">Join Session</button>
+        </div>
+    </div>
 
     <aside class="sidebar">
         <div class="room-info">
@@ -266,11 +367,11 @@
         </div>
         
         <div class="section-panel">
-            <h2 class="section-title">Members Online (3)</h2>
-            <ul class="user-list">
+            <h2 class="section-title">Members Online</h2>
+            <ul class="user-list" id="membersList">
                 <li class="user-item">
                     <span class="user-status studying"></span>
-                    <span>Alex (You)</span>
+                    <span id="currentUserLabel">You</span>
                 </li>
                 <li class="user-item">
                     <span class="user-status studying"></span>
@@ -288,9 +389,6 @@
                     <div class="chat-msg">
                         <span class="chat-user">David:</span> Let's lock in for this 25 mins session.
                     </div>
-                    <div class="chat-msg">
-                        <span class="chat-user">Maria:</span> Ready! Finishing my coffee now.
-                    </div>
                 </div>
                 <input type="text" class="chat-input" placeholder="Message group...">
             </div>
@@ -298,7 +396,6 @@
     </aside>
 
     <main class="main-dashboard">
-        
         <div class="phase-control">
             <button class="phase-btn active pomodoro">Pomodoro</button>
             <button class="phase-btn">Short Break</button>
@@ -318,28 +415,55 @@
             <button class="btn btn-primary">Start Session</button>
             <button class="btn btn-secondary">Reset</button>
         </div>
-
     </main>
 
     <script>
+        // Set your secret passcode here
+        const CORRECT_PASSCODE = "12345"; 
+
+        // DOM elements for Join Screen
+        const joinOverlay = document.getElementById('joinOverlay');
+        const usernameInput = document.getElementById('username');
+        const passcodeInput = document.getElementById('passcode');
+        const joinBtn = document.getElementById('joinBtn');
+        const currentUserLabel = document.getElementById('currentUserLabel');
+
+        // DOM elements for Timer Dashboard
         const timerDigits = document.querySelector('.timer-digits');
         const startBtn = document.querySelector('.btn-primary');
         const resetBtn = document.querySelector('.btn-secondary');
         const progressCircle = document.querySelector('.timer-circle-progress');
 
+        // Handling Form submission
+        joinBtn.addEventListener('click', () => {
+            const name = usernameInput.value.trim();
+            const code = passcodeInput.value.trim();
+
+            if (!name) {
+                alert("Please enter your name.");
+                return;
+            }
+
+            if (code !== CORRECT_PASSCODE) {
+                alert("Incorrect Room Passcode! Please try again.");
+                return;
+            }
+
+            // If passcode matches, customize the placeholder name in the sidebar and hide overlay
+            currentUserLabel.textContent = `${name} (You)`;
+            joinOverlay.classList.add('hidden');
+        });
+
+        // --- TIMER CORE ACTION LOGIC ---
         let countdown;
         let isRunning = false;
-        
-        const totalTime = 25 * 60; // 25 minutes in seconds
+        const totalTime = 25 * 60; 
         let timeLeft = totalTime;
 
         function updateDisplay() {
             const minutes = Math.floor(timeLeft / 60);
             const seconds = timeLeft % 60;
-            
             timerDigits.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-            // Calculate SVG Ring layout offset
             const fraction = timeLeft / totalTime;
             const offset = 283 * (1 - fraction);
             progressCircle.style.strokeDashoffset = offset;
@@ -353,14 +477,13 @@
             } else {
                 startBtn.textContent = 'Pause';
                 isRunning = true;
-                
                 countdown = setInterval(() => {
                     if (timeLeft > 0) {
                         timeLeft--;
                         updateDisplay();
                     } else {
                         clearInterval(countdown);
-                        alert("Time's up! Time for a quick break.");
+                        alert("Time's up!");
                         resetTimer();
                     }
                 }, 1000);
@@ -377,10 +500,7 @@
 
         startBtn.addEventListener('click', toggleTimer);
         resetBtn.addEventListener('click', resetTimer);
-
-        // Initialize display state
         updateDisplay();
     </script>
-
 </body>
 </html>
